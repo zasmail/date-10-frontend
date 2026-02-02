@@ -141,11 +141,14 @@ export function ConversationSidebar({
         ) : (
           <div className="p-2 space-y-1">
             {conversations.map((conv) => (
-              <button
+              <div
                 key={conv.id}
+                role="button"
+                tabIndex={0}
                 onClick={() => onSelectConversation(conv.id)}
+                onKeyDown={(e) => e.key === 'Enter' && onSelectConversation(conv.id)}
                 className={cn(
-                  'w-full text-left p-2 rounded-md transition-colors group',
+                  'w-full text-left p-2 rounded-md transition-colors group cursor-pointer',
                   'hover:bg-muted',
                   currentConversationId === conv.id && 'bg-muted'
                 )}
@@ -171,7 +174,7 @@ export function ConversationSidebar({
                     )}
                   </button>
                 </div>
-              </button>
+              </div>
             ))}
           </div>
         )}
