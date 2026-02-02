@@ -7,7 +7,7 @@ import { Compass, MapPin, Calendar, Sparkles } from 'lucide-react';
 
 interface MessageListProps {
   messages: Message[];
-  isLoading?: boolean;
+  streamingMessageId?: string | null;
   toolStatus?: string | null;
   onExampleClick?: (prompt: string) => void;
 }
@@ -96,7 +96,7 @@ function WelcomeScreen({ onExampleClick }: { onExampleClick?: (prompt: string) =
   );
 }
 
-export function MessageList({ messages, isLoading, toolStatus, onExampleClick }: MessageListProps) {
+export function MessageList({ messages, streamingMessageId, toolStatus, onExampleClick }: MessageListProps) {
   const bottomRef = useRef<HTMLDivElement>(null);
 
   // Auto-scroll on new messages
@@ -106,14 +106,18 @@ export function MessageList({ messages, isLoading, toolStatus, onExampleClick }:
 
   return (
     <div className="flex-1 overflow-y-auto p-4 space-y-4 min-h-0">
-      {messages.length === 0 && !isLoading ? (
+      {messages.length === 0 && !streamingMessageId ? (
         <WelcomeScreen onExampleClick={onExampleClick} />
       ) : (
         <>
           {messages.map((message) => (
-            <MessageBubble key={message.id} message={message} />
+            <MessageBubble
+              key={message.id}
+              message={message}
+              isStreaming={message.id === streamingMessageId}
+              streamingStatus={message.id === streamingMessageId ? toolStatus : undefined}
+            />
           ))}
-          {(isLoading || toolStatus) && <TypingIndicator status={toolStatus} />}
         </>
       )}
       <div ref={bottomRef} />

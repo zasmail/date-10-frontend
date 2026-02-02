@@ -5,6 +5,7 @@ export interface Message {
   created_at?: string;
   itinerary?: ItineraryData;
   flights?: FlightSearchResult;
+  travelDataId?: string; // Links to ItineraryItem in panel context
 }
 
 export interface ConversationSummary {

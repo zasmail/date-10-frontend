@@ -4,10 +4,17 @@ import { useState, FormEvent, KeyboardEvent, forwardRef, useImperativeHandle, us
 import { Button } from '@/components/ui/button';
 import { Textarea } from '@/components/ui/textarea';
 import { Send, Loader2 } from 'lucide-react';
+import { ItineraryItem } from '@/contexts/ItineraryPanelContext';
+import { ItineraryContextSelector } from './ItineraryContextSelector';
 
 interface ChatInputProps {
   onSend: (message: string) => void;
   disabled?: boolean;
+  // Itinerary context props
+  itineraryItems?: ItineraryItem[];
+  selectedItineraryId?: string | null;
+  onItinerarySelect?: (id: string | null) => void;
+  onCreateItinerary?: () => void;
 }
 
 export interface ChatInputRef {
@@ -16,7 +23,14 @@ export interface ChatInputRef {
 }
 
 export const ChatInput = forwardRef<ChatInputRef, ChatInputProps>(
-  function ChatInput({ onSend, disabled }, ref) {
+  function ChatInput({
+    onSend,
+    disabled,
+    itineraryItems,
+    selectedItineraryId,
+    onItinerarySelect,
+    onCreateItinerary,
+  }, ref) {
     const [input, setInput] = useState('');
     const textareaRef = useRef<HTMLTextAreaElement>(null);
 
@@ -46,6 +60,20 @@ export const ChatInput = forwardRef<ChatInputRef, ChatInputProps>(
 
     return (
       <form onSubmit={handleSubmit} className="p-4 border-t shrink-0 bg-background">
+        {/* Itinerary context selector row */}
+        {itineraryItems !== undefined && (
+          <div className="flex items-center gap-2 mb-2 pb-2 border-b">
+            <span className="text-xs text-muted-foreground">Context:</span>
+            <ItineraryContextSelector
+              items={itineraryItems}
+              selectedId={selectedItineraryId ?? null}
+              onSelect={onItinerarySelect || (() => {})}
+              onCreateNew={onCreateItinerary || (() => {})}
+              disabled={disabled}
+            />
+          </div>
+        )}
+
         <div className="flex gap-2">
           <div className="relative flex-1">
             <Textarea

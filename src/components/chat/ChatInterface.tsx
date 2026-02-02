@@ -1,14 +1,20 @@
 'use client';
 
-import { useState, useCallback, useEffect, useRef } from 'react';
+import { useState, useCallback, useEffect, useRef, forwardRef, useImperativeHandle } from 'react';
 import { useSearchParams, useRouter } from 'next/navigation';
 import { v4 as uuidv4 } from 'uuid';
 import { Message, ItineraryData, FlightSearchResult, StoredItinerary } from '@/types/chat';
 import { streamChat, fetchConversation, fetchHealth } from '@/lib/api';
 import { MessageList } from './MessageList';
 import { ChatInput } from './ChatInput';
+import { CreateItineraryDialog } from './CreateItineraryDialog';
 import { Card, CardContent } from '@/components/ui/card';
 import { AlertCircle, CheckCircle2, Loader2, WifiOff, MapPin, Calendar } from 'lucide-react';
+import { useItineraryPanel, ItineraryItem, ItineraryBuildingParams } from '@/contexts/ItineraryPanelContext';
+
+export interface ChatInterfaceHandle {
+  sendMessage: (content: string) => void;
+}
 
 type ConnectionStatus = 'connecting' | 'connected' | 'disconnected' | 'error';
 
@@ -50,7 +56,7 @@ function ConnectionIndicator({ status }: { status: ConnectionStatus }) {
   );
 }
 
-export function ChatInterface() {
+export const ChatInterface = forwardRef<ChatInterfaceHandle>(function ChatInterface(_props, ref) {
   const [messages, setMessages] = useState<Message[]>([]);
   const [isLoading, setIsLoading] = useState(false);
   const [conversationId, setConversationId] = useState<string | undefined>();
@@ -59,10 +65,30 @@ export function ChatInterface() {
   const [loadingConversation, setLoadingConversation] = useState(false);
   const [toolStatus, setToolStatus] = useState<string | null>(null);
   const [savedItineraries, setSavedItineraries] = useState<StoredItinerary[]>([]);
+  const [showCreateDialog, setShowCreateDialog] = useState(false);
+  const [streamingMessageId, setStreamingMessageId] = useState<string | null>(null);
   const inputRef = useRef<{ focus: () => void; setValue: (value: string) => void } | null>(null);
+
+  // Track the current building item ID for streaming updates
+  const currentBuildingItemRef = useRef<string | null>(null);
 
   const searchParams = useSearchParams();
   const router = useRouter();
+
+  // Itinerary panel context
+  const {
+    state,
+    addItem,
+    updateItinerary,
+    updateFlights,
+    setItemStatus,
+    setStatusMessage,
+    setItemError,
+    loadSavedItems,
+    clearItems,
+    getBuildingItem,
+    selectItem,
+  } = useItineraryPanel();
 
   // Check backend health on mount
   useEffect(() => {
@@ -96,16 +122,50 @@ export function ChatInterface() {
       setLoadingConversation(true);
       setMessages([]);
       setSavedItineraries([]);
+
+      // Don't clear items immediately - we want to preserve persisted building items
+      // They'll be merged with backend items below
+
       fetchConversation(id)
         .then((conv) => {
           if (conv.messages) {
-            setMessages(conv.messages.map(m => ({
+            const loadedMessages = conv.messages.map(m => ({
               ...m,
               id: m.id || uuidv4()
-            })));
+            }));
+            setMessages(loadedMessages);
           }
-          if (conv.itineraries) {
+
+          // Populate itinerary panel from saved itineraries (stored separately from messages)
+          if (conv.itineraries && conv.itineraries.length > 0) {
             setSavedItineraries(conv.itineraries);
+
+            // Convert StoredItinerary to ItineraryItem for the panel
+            const backendItems: ItineraryItem[] = conv.itineraries.map((stored) => ({
+              id: `saved-${stored.id}`,
+              messageId: stored.id, // Use itinerary ID since there's no message link
+              itinerary: {
+                destination: stored.destination,
+                start_date: stored.start_date,
+                end_date: stored.end_date,
+                num_travelers: stored.num_travelers,
+                proposals: stored.proposals,
+              },
+              flights: undefined,
+              status: 'saved' as const,
+              createdAt: stored.created_at,
+            }));
+
+            // Merge with existing persisted items (keep building items, replace saved ones)
+            const existingBuildingItems = state.items.filter(item => item.status === 'building');
+            const mergedItems = [...existingBuildingItems, ...backendItems];
+            loadSavedItems(mergedItems);
+          } else {
+            // No backend items, but keep any persisted building items
+            const existingBuildingItems = state.items.filter(item => item.status === 'building');
+            if (existingBuildingItems.length > 0) {
+              loadSavedItems(existingBuildingItems);
+            }
           }
         })
         .catch((err) => {
@@ -116,16 +176,23 @@ export function ChatInterface() {
           setLoadingConversation(false);
         });
     } else {
-      // Clear state for new conversation
+      // New conversation - clear messages but keep building items
       setConversationId(undefined);
       setMessages([]);
       setSavedItineraries([]);
+
+      // Keep building items, clear saved ones
+      const buildingItems = state.items.filter(item => item.status === 'building');
+      if (buildingItems.length !== state.items.length) {
+        loadSavedItems(buildingItems);
+      }
     }
-  }, [searchParams]);
+  }, [searchParams, clearItems, loadSavedItems]);
 
   const handleSend = useCallback(async (content: string) => {
     setError(null);
     setIsLoading(true);
+    currentBuildingItemRef.current = null;
 
     // Add user message immediately
     const userMessage: Message = {
@@ -141,6 +208,7 @@ export function ChatInterface() {
       ...prev,
       { id: assistantId, role: 'assistant', content: '' }
     ]);
+    setStreamingMessageId(assistantId);
 
     try {
       for await (const event of streamChat(content, conversationId)) {
@@ -164,38 +232,98 @@ export function ChatInterface() {
                           event.tool_name === 'search_flights' ? 'Searching flights...' :
                           'Processing...';
           setToolStatus(toolName);
+
+          // Create a new panel item when itinerary or flight tool starts
+          if (event.tool_name === 'generate_itinerary' || event.tool_name === 'search_flights') {
+            // Check if there's already a building item (e.g., from Create button)
+            if (!currentBuildingItemRef.current) {
+              const existingBuildingItem = getBuildingItem();
+              if (existingBuildingItem) {
+                // Use the existing building item
+                currentBuildingItemRef.current = existingBuildingItem.id;
+              } else {
+                // Create a new item
+                const itemId = addItem(assistantId, 'building');
+                currentBuildingItemRef.current = itemId;
+              }
+            }
+            // Update status message
+            if (currentBuildingItemRef.current) {
+              const statusMsg = event.tool_name === 'generate_itinerary'
+                ? 'Generating itinerary...'
+                : 'Searching for flights...';
+              setStatusMessage(currentBuildingItemRef.current, statusMsg);
+            }
+          }
         } else if (event.type === 'flight_search_start') {
           setToolStatus('Searching for flights...');
+          // Create panel item if not already created
+          if (!currentBuildingItemRef.current) {
+            const existingBuildingItem = getBuildingItem();
+            if (existingBuildingItem) {
+              currentBuildingItemRef.current = existingBuildingItem.id;
+            } else {
+              const itemId = addItem(assistantId, 'building');
+              currentBuildingItemRef.current = itemId;
+            }
+          }
+          if (currentBuildingItemRef.current) {
+            setStatusMessage(currentBuildingItemRef.current, 'Searching for flights...');
+          }
         } else if (event.type === 'itinerary') {
           // Add itinerary to the current assistant message
           setToolStatus(null);
+          const itineraryData = event.data as ItineraryData;
           setMessages((prev) => {
             const updated = [...prev];
             const lastIdx = updated.length - 1;
             updated[lastIdx] = {
               ...updated[lastIdx],
-              itinerary: event.data as ItineraryData
+              itinerary: itineraryData
             };
             return updated;
           });
+
+          // Update the panel item with itinerary data
+          if (currentBuildingItemRef.current) {
+            updateItinerary(currentBuildingItemRef.current, itineraryData);
+          }
         } else if (event.type === 'flights') {
           // Add flights to the current assistant message
           setToolStatus(null);
+          const flightsData = event.data as FlightSearchResult;
           setMessages((prev) => {
             const updated = [...prev];
             const lastIdx = updated.length - 1;
             updated[lastIdx] = {
               ...updated[lastIdx],
-              flights: event.data as FlightSearchResult
+              flights: flightsData
             };
             return updated;
           });
+
+          // Update the panel item with flights data
+          if (currentBuildingItemRef.current) {
+            updateFlights(currentBuildingItemRef.current, flightsData);
+          }
         } else if (event.type === 'tool_error') {
           setToolStatus(null);
           console.error('Tool error:', event.error);
         } else if (event.type === 'done') {
-          // Streaming complete
+          // Streaming complete - mark item as complete
           setToolStatus(null);
+          setStreamingMessageId(null);
+          if (currentBuildingItemRef.current) {
+            // Briefly show finalizing before marking complete
+            setStatusMessage(currentBuildingItemRef.current, 'Finalizing...');
+            // Small delay to show the finalizing status
+            setTimeout(() => {
+              if (currentBuildingItemRef.current) {
+                setItemStatus(currentBuildingItemRef.current, 'complete');
+                currentBuildingItemRef.current = null;
+              }
+            }, 500);
+          }
         }
       }
     } catch (err) {
@@ -206,17 +334,32 @@ export function ChatInterface() {
       // Update connection status on error
       setConnectionStatus('error');
       setToolStatus(null);
+      setStreamingMessageId(null);
+      currentBuildingItemRef.current = null;
     } finally {
       setIsLoading(false);
       setToolStatus(null);
     }
-  }, [conversationId, router]);
+  }, [conversationId, router, addItem, updateItinerary, updateFlights, setItemStatus]);
 
   const handleExampleClick = useCallback((prompt: string) => {
     handleSend(prompt);
   }, [handleSend]);
 
-  const isShowingTypingIndicator = isLoading && messages[messages.length - 1]?.content === '';
+  // Handle creating a new itinerary from the dialog
+  const handleCreateItinerary = useCallback((params: ItineraryBuildingParams, panelItemId: string) => {
+    // Track that we're creating for this panel item
+    currentBuildingItemRef.current = panelItemId;
+
+    // Send a message to Claude to generate the itinerary
+    const prompt = `Create a detailed travel itinerary for ${params.destination} from ${params.startDate} to ${params.endDate} for ${params.travelers} traveler${params.travelers > 1 ? 's' : ''}.`;
+    handleSend(prompt);
+  }, [handleSend]);
+
+  // Expose sendMessage method via ref for programmatic access
+  useImperativeHandle(ref, () => ({
+    sendMessage: handleSend,
+  }), [handleSend]);
 
   return (
     <Card className="flex flex-col h-full max-w-4xl mx-auto overflow-hidden">
@@ -295,7 +438,7 @@ export function ChatInterface() {
         {/* Message list */}
         <MessageList
           messages={messages}
-          isLoading={isShowingTypingIndicator}
+          streamingMessageId={streamingMessageId}
           toolStatus={toolStatus}
           onExampleClick={handleExampleClick}
         />
@@ -305,8 +448,19 @@ export function ChatInterface() {
           ref={inputRef}
           onSend={handleSend}
           disabled={isLoading || connectionStatus === 'error'}
+          itineraryItems={state.items}
+          selectedItineraryId={state.selectedId}
+          onItinerarySelect={selectItem}
+          onCreateItinerary={() => setShowCreateDialog(true)}
         />
       </CardContent>
+
+      {/* Create itinerary dialog */}
+      <CreateItineraryDialog
+        isOpen={showCreateDialog}
+        onClose={() => setShowCreateDialog(false)}
+        onSubmit={handleCreateItinerary}
+      />
     </Card>
   );
-}
+});
