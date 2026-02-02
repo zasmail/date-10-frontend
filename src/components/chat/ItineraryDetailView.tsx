@@ -2,9 +2,10 @@
 
 import { useState, useEffect } from 'react';
 import { ItineraryData, ItineraryProposal, ItineraryDay, ItineraryActivity } from '@/types/chat';
-import type { MapDestination } from '@/types/map';
-import { ItineraryMap } from '@/components/map';
-import { geocodeLocation } from '@/lib/api';
+// Phase 11: Map visualization - disabled for now
+// import type { MapDestination } from '@/types/map';
+// import { ItineraryMap } from '@/components/map';
+// import { geocodeLocation } from '@/lib/api';
 import { Calendar, Users, MapPin, ChevronDown, Check, AlertCircle, Building, Clock } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { Collapsible, CollapsibleTrigger, CollapsibleContent } from '@/components/ui/collapsible';
@@ -103,12 +104,10 @@ function ProposalView({
   proposal,
   isExpanded,
   onToggle,
-  mapDestinations,
 }: {
   proposal: ItineraryProposal;
   isExpanded: boolean;
   onToggle: (open: boolean) => void;
-  mapDestinations?: MapDestination[];
 }) {
   return (
     <Collapsible
@@ -145,7 +144,8 @@ function ProposalView({
       <CollapsibleContent className="border-t border-slate-100">
         <div className="px-4 pb-4">
           {/* Map */}
-          {mapDestinations && mapDestinations.length > 0 && (
+          {/* Phase 11: Map visualization - disabled */}
+          {/* {mapDestinations && mapDestinations.length > 0 && (
             <div className="mt-4">
               <h4 className="text-xs font-semibold text-slate-500 uppercase tracking-wide mb-2">
                 Trip Route
@@ -156,7 +156,7 @@ function ProposalView({
                 className="h-[280px] rounded-lg overflow-hidden"
               />
             </div>
-          )}
+          )} */}
 
           {/* Highlights */}
           {proposal.highlights.length > 0 && (
@@ -211,60 +211,50 @@ export function ItineraryDetailView({ itinerary, isBuilding }: ItineraryDetailVi
   const [expandedProposal, setExpandedProposal] = useState<string | null>(
     itinerary.proposals.length > 0 ? itinerary.proposals[0].id : null
   );
-  const [mapDestinations, setMapDestinations] = useState<MapDestination[]>([]);
+  // Phase 11: Map visualization - disabled
+  // const [mapDestinations, setMapDestinations] = useState<MapDestination[]>([]);
 
-  // Geocode locations when expanded proposal changes
-  useEffect(() => {
-    if (!expandedProposal) return;
-
-    const proposal = itinerary.proposals.find((p) => p.id === expandedProposal);
-    if (!proposal) return;
-
-    async function geocodeProposalLocations() {
-      const locations = new Map<string, { dayNumber: number; title: string }>();
-
-      // Collect unique locations from days
-      for (const day of proposal!.days) {
-        const locationName = day.location;
-        if (locationName && !locations.has(locationName)) {
-          locations.set(locationName, { dayNumber: day.day_number, title: day.title });
-        }
-      }
-
-      // Also try to geocode the main destination
-      if (itinerary.destination && !locations.has(itinerary.destination)) {
-        locations.set(itinerary.destination, { dayNumber: 0, title: 'Destination' });
-      }
-
-      const destinations: MapDestination[] = [];
-
-      for (const [locationName, { dayNumber, title }] of locations) {
-        try {
-          const geocoded = await geocodeLocation(locationName);
-          if (geocoded) {
-            destinations.push({
-              id: `${expandedProposal}-${dayNumber}-${locationName}`,
-              name: locationName,
-              lat: geocoded.lat,
-              lng: geocoded.lng,
-              dayNumber: dayNumber || 1,
-              description: title,
-              country: geocoded.country,
-              region: geocoded.region,
-            });
-          }
-        } catch (err) {
-          console.error(`Failed to geocode ${locationName}:`, err);
-        }
-      }
-
-      // Sort by day number
-      destinations.sort((a, b) => a.dayNumber - b.dayNumber);
-      setMapDestinations(destinations);
-    }
-
-    geocodeProposalLocations();
-  }, [itinerary, expandedProposal]);
+  // Phase 11: Geocoding - disabled
+  // useEffect(() => {
+  //   if (!expandedProposal) return;
+  //   const proposal = itinerary.proposals.find((p) => p.id === expandedProposal);
+  //   if (!proposal) return;
+  //   async function geocodeProposalLocations() {
+  //     const locations = new Map<string, { dayNumber: number; title: string }>();
+  //     for (const day of proposal!.days) {
+  //       const locationName = day.location;
+  //       if (locationName && !locations.has(locationName)) {
+  //         locations.set(locationName, { dayNumber: day.day_number, title: day.title });
+  //       }
+  //     }
+  //     if (itinerary.destination && !locations.has(itinerary.destination)) {
+  //       locations.set(itinerary.destination, { dayNumber: 0, title: 'Destination' });
+  //     }
+  //     const destinations: MapDestination[] = [];
+  //     for (const [locationName, { dayNumber, title }] of locations) {
+  //       try {
+  //         const geocoded = await geocodeLocation(locationName);
+  //         if (geocoded) {
+  //           destinations.push({
+  //             id: `${expandedProposal}-${dayNumber}-${locationName}`,
+  //             name: locationName,
+  //             lat: geocoded.lat,
+  //             lng: geocoded.lng,
+  //             dayNumber: dayNumber || 1,
+  //             description: title,
+  //             country: geocoded.country,
+  //             region: geocoded.region,
+  //           });
+  //         }
+  //       } catch (err) {
+  //         console.error(`Failed to geocode ${locationName}:`, err);
+  //       }
+  //     }
+  //     destinations.sort((a, b) => a.dayNumber - b.dayNumber);
+  //     setMapDestinations(destinations);
+  //   }
+  //   geocodeProposalLocations();
+  // }, [itinerary, expandedProposal]);
 
   // Auto-expand first proposal when itinerary changes
   useEffect(() => {
@@ -319,7 +309,6 @@ export function ItineraryDetailView({ itinerary, isBuilding }: ItineraryDetailVi
               proposal={proposal}
               isExpanded={expandedProposal === proposal.id}
               onToggle={(open) => setExpandedProposal(open ? proposal.id : null)}
-              mapDestinations={expandedProposal === proposal.id ? mapDestinations : undefined}
             />
           ))}
         </div>
