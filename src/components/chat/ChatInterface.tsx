@@ -3,12 +3,12 @@
 import { useState, useCallback, useEffect, useRef } from 'react';
 import { useSearchParams, useRouter } from 'next/navigation';
 import { v4 as uuidv4 } from 'uuid';
-import { Message, ItineraryData, FlightSearchResult } from '@/types/chat';
+import { Message, ItineraryData, FlightSearchResult, StoredItinerary } from '@/types/chat';
 import { streamChat, fetchConversation, fetchHealth } from '@/lib/api';
 import { MessageList } from './MessageList';
 import { ChatInput } from './ChatInput';
 import { Card, CardContent } from '@/components/ui/card';
-import { AlertCircle, CheckCircle2, Loader2, WifiOff, Plane, Map } from 'lucide-react';
+import { AlertCircle, CheckCircle2, Loader2, WifiOff, MapPin, Calendar } from 'lucide-react';
 
 type ConnectionStatus = 'connecting' | 'connected' | 'disconnected' | 'error';
 
@@ -58,6 +58,7 @@ export function ChatInterface() {
   const [connectionStatus, setConnectionStatus] = useState<ConnectionStatus>('connecting');
   const [loadingConversation, setLoadingConversation] = useState(false);
   const [toolStatus, setToolStatus] = useState<string | null>(null);
+  const [savedItineraries, setSavedItineraries] = useState<StoredItinerary[]>([]);
   const inputRef = useRef<{ focus: () => void; setValue: (value: string) => void } | null>(null);
 
   const searchParams = useSearchParams();
@@ -93,6 +94,8 @@ export function ChatInterface() {
     if (id) {
       setConversationId(id);
       setLoadingConversation(true);
+      setMessages([]);
+      setSavedItineraries([]);
       fetchConversation(id)
         .then((conv) => {
           if (conv.messages) {
@@ -100,6 +103,9 @@ export function ChatInterface() {
               ...m,
               id: m.id || uuidv4()
             })));
+          }
+          if (conv.itineraries) {
+            setSavedItineraries(conv.itineraries);
           }
         })
         .catch((err) => {
@@ -109,6 +115,11 @@ export function ChatInterface() {
         .finally(() => {
           setLoadingConversation(false);
         });
+    } else {
+      // Clear state for new conversation
+      setConversationId(undefined);
+      setMessages([]);
+      setSavedItineraries([]);
     }
   }, [searchParams]);
 
@@ -219,6 +230,12 @@ export function ChatInterface() {
                 Conversation saved
               </span>
             )}
+            {savedItineraries.length > 0 && (
+              <span className="text-xs text-muted-foreground flex items-center gap-1">
+                <MapPin className="h-3 w-3" />
+                {savedItineraries.length} itinerar{savedItineraries.length !== 1 ? 'ies' : 'y'}
+              </span>
+            )}
           </div>
           {messages.length > 0 && (
             <span className="text-xs text-muted-foreground">
@@ -226,6 +243,32 @@ export function ChatInterface() {
             </span>
           )}
         </div>
+
+        {/* Saved itineraries summary */}
+        {savedItineraries.length > 0 && (
+          <div className="px-4 py-2 border-b bg-primary/5 shrink-0">
+            <div className="text-xs font-medium mb-1 flex items-center gap-1">
+              <Calendar className="h-3 w-3" />
+              Saved Itineraries
+            </div>
+            <div className="flex flex-wrap gap-2">
+              {savedItineraries.map((it) => (
+                <div
+                  key={it.id}
+                  className="text-xs bg-background rounded px-2 py-1 border"
+                >
+                  <span className="font-medium">{it.destination}</span>
+                  <span className="text-muted-foreground ml-1">
+                    {it.start_date} - {it.end_date}
+                  </span>
+                  <span className="text-muted-foreground ml-1">
+                    ({it.proposals.length} proposals)
+                  </span>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
 
         {/* Error banner */}
         {error && (

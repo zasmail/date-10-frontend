@@ -1,5 +1,5 @@
 import { preferencesDataSchema, PreferencesData } from '@/lib/schemas/preferences';
-import { Conversation, ChatStreamEvent } from '@/types/chat';
+import { Conversation, ConversationSummary, ChatStreamEvent } from '@/types/chat';
 import type { SharedItinerary, ShareLinkResponse } from '@/types/itinerary';
 import type { GeocodedLocation } from '@/types/map';
 
@@ -50,7 +50,7 @@ export async function updatePreferences(preferences: PreferencesData): Promise<P
 /**
  * Fetch all conversations for the current user.
  */
-export async function fetchConversations(): Promise<Conversation[]> {
+export async function fetchConversations(): Promise<ConversationSummary[]> {
   const response = await fetch(`${API_BASE}/chat/conversations`);
   if (!response.ok) {
     throw new Error(`Failed to fetch conversations: ${response.status}`);
@@ -59,7 +59,7 @@ export async function fetchConversations(): Promise<Conversation[]> {
 }
 
 /**
- * Fetch a single conversation with its messages.
+ * Fetch a single conversation with its messages and itineraries.
  */
 export async function fetchConversation(id: string): Promise<Conversation> {
   const response = await fetch(`${API_BASE}/chat/conversations/${id}`);
@@ -67,6 +67,18 @@ export async function fetchConversation(id: string): Promise<Conversation> {
     throw new Error(`Failed to fetch conversation: ${response.status}`);
   }
   return response.json();
+}
+
+/**
+ * Delete a conversation.
+ */
+export async function deleteConversation(id: string): Promise<void> {
+  const response = await fetch(`${API_BASE}/chat/conversations/${id}`, {
+    method: 'DELETE',
+  });
+  if (!response.ok) {
+    throw new Error(`Failed to delete conversation: ${response.status}`);
+  }
 }
 
 /**

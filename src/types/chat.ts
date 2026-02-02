@@ -7,12 +7,31 @@ export interface Message {
   flights?: FlightSearchResult;
 }
 
+export interface ConversationSummary {
+  id: string;
+  title: string | null;
+  created_at: string;
+  updated_at: string;
+}
+
 export interface Conversation {
   id: string;
   title: string | null;
   created_at: string;
   updated_at: string;
   messages?: Message[];
+  itineraries?: StoredItinerary[];
+}
+
+export interface StoredItinerary {
+  id: string;
+  destination: string;
+  start_date: string;
+  end_date: string;
+  num_travelers: number;
+  proposals: ItineraryProposal[];
+  selected_proposal_id: string | null;
+  created_at: string;
 }
 
 // Itinerary types

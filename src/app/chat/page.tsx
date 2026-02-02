@@ -1,6 +1,10 @@
-import { Suspense } from 'react';
+'use client';
+
+import { Suspense, useState, useCallback } from 'react';
 import Link from 'next/link';
+import { useRouter, useSearchParams } from 'next/navigation';
 import { ChatInterface } from '@/components/chat/ChatInterface';
+import { ConversationSidebar } from '@/components/chat/ConversationSidebar';
 import { Button } from '@/components/ui/button';
 import { ArrowLeft, Settings, Loader2 } from 'lucide-react';
 
@@ -13,12 +17,30 @@ function ChatLoading() {
   );
 }
 
-export default function ChatPage() {
+function ChatPageContent() {
+  const router = useRouter();
+  const searchParams = useSearchParams();
+  const conversationId = searchParams.get('id') || undefined;
+  const [key, setKey] = useState(0); // Used to force re-mount ChatInterface
+
+  const handleSelectConversation = useCallback((id: string | null) => {
+    if (id) {
+      router.push(`/chat?id=${id}`);
+    } else {
+      router.push('/chat');
+    }
+  }, [router]);
+
+  const handleNewConversation = useCallback(() => {
+    router.push('/chat');
+    setKey((k) => k + 1); // Force re-mount to clear state
+  }, [router]);
+
   return (
     <main className="h-screen flex flex-col overflow-hidden">
       {/* Header with navigation and help */}
       <header className="border-b shrink-0">
-        <div className="container py-3 flex items-center justify-between">
+        <div className="px-4 py-3 flex items-center justify-between">
           <div className="flex items-center gap-4">
             <Button asChild variant="ghost" size="icon">
               <Link href="/">
@@ -41,12 +63,28 @@ export default function ChatPage() {
         </div>
       </header>
 
-      {/* Chat Interface */}
-      <div className="container flex-1 pb-4 pt-4 min-h-0">
-        <Suspense fallback={<ChatLoading />}>
-          <ChatInterface />
-        </Suspense>
+      {/* Main content with sidebar */}
+      <div className="flex-1 flex min-h-0">
+        {/* Conversation sidebar */}
+        <ConversationSidebar
+          currentConversationId={conversationId}
+          onSelectConversation={handleSelectConversation}
+          onNewConversation={handleNewConversation}
+        />
+
+        {/* Chat Interface */}
+        <div className="flex-1 p-4 min-h-0">
+          <ChatInterface key={key} />
+        </div>
       </div>
     </main>
+  );
+}
+
+export default function ChatPage() {
+  return (
+    <Suspense fallback={<ChatLoading />}>
+      <ChatPageContent />
+    </Suspense>
   );
 }
