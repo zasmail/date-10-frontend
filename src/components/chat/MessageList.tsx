@@ -8,6 +8,7 @@ import { Compass, MapPin, Calendar, Sparkles } from 'lucide-react';
 interface MessageListProps {
   messages: Message[];
   isLoading?: boolean;
+  toolStatus?: string | null;
   onExampleClick?: (prompt: string) => void;
 }
 
@@ -34,14 +35,17 @@ const EXAMPLE_PROMPTS = [
   },
 ];
 
-function TypingIndicator() {
+function TypingIndicator({ status }: { status?: string | null }) {
   return (
     <div className="flex justify-start">
       <div className="bg-muted rounded-lg px-4 py-3">
-        <div className="flex items-center gap-1">
-          <span className="w-2 h-2 bg-muted-foreground/50 rounded-full animate-bounce [animation-delay:-0.3s]" />
-          <span className="w-2 h-2 bg-muted-foreground/50 rounded-full animate-bounce [animation-delay:-0.15s]" />
-          <span className="w-2 h-2 bg-muted-foreground/50 rounded-full animate-bounce" />
+        <div className="flex items-center gap-2">
+          <div className="flex items-center gap-1">
+            <span className="w-2 h-2 bg-muted-foreground/50 rounded-full animate-bounce [animation-delay:-0.3s]" />
+            <span className="w-2 h-2 bg-muted-foreground/50 rounded-full animate-bounce [animation-delay:-0.15s]" />
+            <span className="w-2 h-2 bg-muted-foreground/50 rounded-full animate-bounce" />
+          </div>
+          {status && <span className="text-sm text-muted-foreground">{status}</span>}
         </div>
       </div>
     </div>
@@ -92,13 +96,13 @@ function WelcomeScreen({ onExampleClick }: { onExampleClick?: (prompt: string) =
   );
 }
 
-export function MessageList({ messages, isLoading, onExampleClick }: MessageListProps) {
+export function MessageList({ messages, isLoading, toolStatus, onExampleClick }: MessageListProps) {
   const bottomRef = useRef<HTMLDivElement>(null);
 
   // Auto-scroll on new messages
   useEffect(() => {
     bottomRef.current?.scrollIntoView({ behavior: 'smooth' });
-  }, [messages]);
+  }, [messages, toolStatus]);
 
   return (
     <div className="flex-1 overflow-y-auto p-4 space-y-4 min-h-0">
@@ -109,7 +113,7 @@ export function MessageList({ messages, isLoading, onExampleClick }: MessageList
           {messages.map((message) => (
             <MessageBubble key={message.id} message={message} />
           ))}
-          {isLoading && <TypingIndicator />}
+          {(isLoading || toolStatus) && <TypingIndicator status={toolStatus} />}
         </>
       )}
       <div ref={bottomRef} />

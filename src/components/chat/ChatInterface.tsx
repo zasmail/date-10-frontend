@@ -3,12 +3,12 @@
 import { useState, useCallback, useEffect, useRef } from 'react';
 import { useSearchParams, useRouter } from 'next/navigation';
 import { v4 as uuidv4 } from 'uuid';
-import { Message } from '@/types/chat';
+import { Message, ItineraryData, FlightSearchResult } from '@/types/chat';
 import { streamChat, fetchConversation, fetchHealth } from '@/lib/api';
 import { MessageList } from './MessageList';
 import { ChatInput } from './ChatInput';
 import { Card, CardContent } from '@/components/ui/card';
-import { AlertCircle, CheckCircle2, Loader2, WifiOff } from 'lucide-react';
+import { AlertCircle, CheckCircle2, Loader2, WifiOff, Plane, Map } from 'lucide-react';
 
 type ConnectionStatus = 'connecting' | 'connected' | 'disconnected' | 'error';
 
@@ -57,6 +57,7 @@ export function ChatInterface() {
   const [error, setError] = useState<string | null>(null);
   const [connectionStatus, setConnectionStatus] = useState<ConnectionStatus>('connecting');
   const [loadingConversation, setLoadingConversation] = useState(false);
+  const [toolStatus, setToolStatus] = useState<string | null>(null);
   const inputRef = useRef<{ focus: () => void; setValue: (value: string) => void } | null>(null);
 
   const searchParams = useSearchParams();
@@ -146,8 +147,44 @@ export function ChatInterface() {
             };
             return updated;
           });
+        } else if (event.type === 'tool_start') {
+          // Show tool status
+          const toolName = event.tool_name === 'generate_itinerary' ? 'Creating itinerary...' :
+                          event.tool_name === 'search_flights' ? 'Searching flights...' :
+                          'Processing...';
+          setToolStatus(toolName);
+        } else if (event.type === 'flight_search_start') {
+          setToolStatus('Searching for flights...');
+        } else if (event.type === 'itinerary') {
+          // Add itinerary to the current assistant message
+          setToolStatus(null);
+          setMessages((prev) => {
+            const updated = [...prev];
+            const lastIdx = updated.length - 1;
+            updated[lastIdx] = {
+              ...updated[lastIdx],
+              itinerary: event.data as ItineraryData
+            };
+            return updated;
+          });
+        } else if (event.type === 'flights') {
+          // Add flights to the current assistant message
+          setToolStatus(null);
+          setMessages((prev) => {
+            const updated = [...prev];
+            const lastIdx = updated.length - 1;
+            updated[lastIdx] = {
+              ...updated[lastIdx],
+              flights: event.data as FlightSearchResult
+            };
+            return updated;
+          });
+        } else if (event.type === 'tool_error') {
+          setToolStatus(null);
+          console.error('Tool error:', event.error);
         } else if (event.type === 'done') {
           // Streaming complete
+          setToolStatus(null);
         }
       }
     } catch (err) {
@@ -157,8 +194,10 @@ export function ChatInterface() {
       setMessages((prev) => prev.slice(0, -1));
       // Update connection status on error
       setConnectionStatus('error');
+      setToolStatus(null);
     } finally {
       setIsLoading(false);
+      setToolStatus(null);
     }
   }, [conversationId, router]);
 
@@ -214,6 +253,7 @@ export function ChatInterface() {
         <MessageList
           messages={messages}
           isLoading={isShowingTypingIndicator}
+          toolStatus={toolStatus}
           onExampleClick={handleExampleClick}
         />
 
