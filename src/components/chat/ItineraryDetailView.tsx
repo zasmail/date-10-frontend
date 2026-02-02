@@ -118,27 +118,25 @@ function ProposalView({
         isExpanded ? 'border-blue-300 ring-1 ring-blue-100' : 'border-slate-200'
       )}
     >
-      <CollapsibleTrigger asChild>
-        <button className="w-full p-4 text-left hover:bg-slate-50 transition-colors">
-          <div className="flex items-center justify-between">
-            <div className="flex-1 min-w-0">
-              <h3 className="text-lg font-bold text-slate-800 truncate">{proposal.title}</h3>
-            </div>
-            <ChevronDown className={cn(
-              'h-5 w-5 text-slate-400 flex-shrink-0 ml-2 transition-transform duration-200',
-              isExpanded && 'rotate-180'
-            )} />
+      <CollapsibleTrigger className="w-full p-4 text-left hover:bg-slate-50 transition-colors">
+        <div className="flex items-center justify-between">
+          <div className="flex-1 min-w-0">
+            <h3 className="text-lg font-bold text-slate-800 truncate">{proposal.title}</h3>
           </div>
-          <p className="text-sm text-slate-600 mt-1 line-clamp-2">{proposal.summary}</p>
-          <div className="flex items-center gap-3 mt-2">
-            <span className="text-sm font-medium text-green-600">
-              {proposal.total_budget_estimate}
-            </span>
-            <span className="text-xs text-slate-500">
-              {proposal.days.length} day{proposal.days.length !== 1 ? 's' : ''}
-            </span>
-          </div>
-        </button>
+          <ChevronDown className={cn(
+            'h-5 w-5 text-slate-400 flex-shrink-0 ml-2 transition-transform duration-200',
+            isExpanded && 'rotate-180'
+          )} />
+        </div>
+        <p className="text-sm text-slate-600 mt-1 line-clamp-2">{proposal.summary}</p>
+        <div className="flex items-center gap-3 mt-2">
+          <span className="text-sm font-medium text-green-600">
+            {proposal.total_budget_estimate}
+          </span>
+          <span className="text-xs text-slate-500">
+            {proposal.days.length} day{proposal.days.length !== 1 ? 's' : ''}
+          </span>
+        </div>
       </CollapsibleTrigger>
 
       <CollapsibleContent className="border-t border-slate-100">

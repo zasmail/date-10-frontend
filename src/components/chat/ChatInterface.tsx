@@ -247,11 +247,17 @@ export const ChatInterface = forwardRef<ChatInterfaceHandle>(function ChatInterf
                 currentBuildingItemRef.current = itemId;
               }
             }
-            // Update status message
+            // Update status message with more detail
             if (currentBuildingItemRef.current) {
-              const statusMsg = event.tool_name === 'generate_itinerary'
-                ? 'Generating itinerary...'
-                : 'Searching for flights...';
+              let statusMsg = '';
+              if (event.tool_name === 'generate_itinerary') {
+                // More descriptive progress for itinerary generation
+                statusMsg = 'Analyzing your preferences...';
+              } else if (event.tool_name === 'search_flights') {
+                statusMsg = 'Searching for flights...';
+              } else {
+                statusMsg = `Running ${event.tool_name}...`;
+              }
               setStatusMessage(currentBuildingItemRef.current, statusMsg);
             }
           }

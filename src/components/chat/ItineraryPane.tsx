@@ -171,11 +171,25 @@ function BuildingState() {
   );
 }
 
-function ErrorState() {
-  const { getSelectedItem } = useItineraryPanel();
+function ErrorState({ onRetry }: { onRetry?: () => void }) {
+  const { getSelectedItem, setItemStatus } = useItineraryPanel();
   const selectedItem = getSelectedItem();
 
   if (!selectedItem || selectedItem.status !== 'error') return null;
+
+  const handleRetry = () => {
+    if (onRetry && selectedItem.buildingParams) {
+      // Reset status to building
+      setItemStatus(selectedItem.id, 'building', 'Retrying...');
+      // Trigger retry with original params
+      onRetry();
+    }
+  };
+
+  const handleDismiss = () => {
+    // Mark as saved to hide from building state
+    setItemStatus(selectedItem.id, 'saved');
+  };
 
   return (
     <div className="flex flex-col items-center justify-center h-full p-8 text-center">
@@ -183,14 +197,45 @@ function ErrorState() {
         <AlertCircle className="h-8 w-8 text-red-500" />
       </div>
       <h3 className="text-lg font-semibold text-slate-800 mb-2">Something went wrong</h3>
-      <p className="text-sm text-slate-600 max-w-xs">
+      <p className="text-sm text-slate-600 max-w-xs mb-4">
         {selectedItem.error || 'Failed to create itinerary. Please try again.'}
       </p>
+
+      {/* Retry actions */}
+      <div className="flex flex-col gap-2 w-full max-w-xs">
+        {onRetry && selectedItem.buildingParams && (
+          <button
+            onClick={handleRetry}
+            className={cn(
+              'flex items-center justify-center gap-2 px-4 py-2 rounded-lg font-medium transition-all',
+              'bg-blue-500 text-white hover:bg-blue-600',
+              'transform hover:scale-105'
+            )}
+          >
+            <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+            </svg>
+            Retry
+          </button>
+        )}
+        <button
+          onClick={handleDismiss}
+          className="text-sm text-slate-500 hover:text-slate-700"
+        >
+          Dismiss
+        </button>
+      </div>
     </div>
   );
 }
 
-function SelectedItemContent({ onCreateClick }: { onCreateClick: () => void }) {
+function SelectedItemContent({
+  onCreateClick,
+  onRetry
+}: {
+  onCreateClick: () => void;
+  onRetry?: (params: ItineraryBuildingParams) => void;
+}) {
   const { getSelectedItem } = useItineraryPanel();
   const selectedItem = getSelectedItem();
 
@@ -203,9 +248,13 @@ function SelectedItemContent({ onCreateClick }: { onCreateClick: () => void }) {
   const hasItinerary = !!selectedItem.itinerary;
   const hasFlights = !!selectedItem.flights;
 
-  // Error state
+  // Error state with retry callback
   if (isError) {
-    return <ErrorState />;
+    return <ErrorState onRetry={
+      onRetry && selectedItem.buildingParams
+        ? () => onRetry(selectedItem.buildingParams!)
+        : undefined
+    } />;
   }
 
   // Building state with no data yet
@@ -257,11 +306,22 @@ export function ItineraryPane({ onCreateItinerary }: ItineraryPaneProps) {
     }
   };
 
+  const handleRetry = (params: ItineraryBuildingParams) => {
+    // Get the failed item's panel ID
+    const failedItem = state.items.find(item => item.status === 'error' && item.buildingParams);
+    if (failedItem && onCreateItinerary) {
+      onCreateItinerary(params, failedItem.id);
+    }
+  };
+
   return (
     <div className="flex flex-col h-full bg-white">
       <ItineraryPaneHeader onCreateClick={handleCreateClick} />
       <div className="flex-1 overflow-hidden">
-        <SelectedItemContent onCreateClick={handleCreateClick} />
+        <SelectedItemContent
+          onCreateClick={handleCreateClick}
+          onRetry={onCreateItinerary ? handleRetry : undefined}
+        />
       </div>
 
       {/* Floating create button when there are items */}
